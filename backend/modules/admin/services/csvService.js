@@ -5,7 +5,7 @@ const DataRow = require('../../../database/models/DataRow');
 
 exports.processCsvUpload = async (fileInfo, projectName, selectedHeaders = [], customColumns = []) => {
     const filePath = fileInfo.path;
-    const batchSize = 1; // Absolute minimum to debug
+    const batchSize = 1000;
 
     console.log(`[CSV Service] Processing file: ${filePath}`);
     console.log(`[CSV Service] Project Name: ${projectName}`);
