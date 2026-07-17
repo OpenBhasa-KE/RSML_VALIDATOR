@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Resizable } from "re-resizable";
 import RSMLEditor from "./RSMLEditor";
 
@@ -8,17 +8,22 @@ import "ag-grid-community/styles/ag-grid.css";
 import "ag-grid-community/styles/ag-theme-quartz.css";
 
 // ─── Audio Cell ───────────────────────────────────────────────────────────────
-const AudioCellRenderer = (params) => {
-  if (!params.value) return null;
-  return (
-    <audio
-      controls
-      src={params.value}
-      style={{ height: "30px", marginTop: "5px" }}
-    >
-      Your browser does not support the audio element.
-    </audio>
-  );
+const getAudioSource = (rowData, field) => {
+  const value =
+    rowData?.audio_base64 ||
+    rowData?.["audio base64"] ||
+    rowData?.[field];
+
+  if (!value || typeof value !== "string") return null;
+  if (
+    value.startsWith("data:") ||
+    value.startsWith("http://") ||
+    value.startsWith("https://")
+  ) {
+    return value;
+  }
+
+  return `data:audio/wav;base64,${value}`;
 };
 
 const DataGrid = ({ projectId }) => {
@@ -74,22 +79,18 @@ const DataGrid = ({ projectId }) => {
             "rsml_indic_conformer",
           ];
 
-          let audioColumnField = null;
+          let audioColumnField =
+            project.headers.find((header) => header.toLowerCase() === "audio_base64") ||
+            project.headers.find((header) => header.toLowerCase() === "audio base64") ||
+            null;
 
           // Heuristic: Check first row data for possible audio content
-          if (data && data.length > 0) {
+          if (!audioColumnField && data && data.length > 0) {
             const firstRow = data[0];
             for (const header of project.headers) {
               if (excludedColumns.includes(header)) continue;
 
               const cellValue = firstRow[header];
-              // Check if distinctively long and looks like base64 (no spaces, common chars)
-              // or explicitly named 'audio'
-              if (header.toLowerCase().includes("audio")) {
-                audioColumnField = header;
-                break;
-              }
-
               if (
                 typeof cellValue === "string" &&
                 cellValue.length > 500 &&
@@ -104,8 +105,14 @@ const DataGrid = ({ projectId }) => {
 
           const cols = [];
 
-          // 1. Add Synthetic Audio Column if detected
-          if (audioColumnField) {
+          const selectedAudioColumn =
+            (project.selectedHeaders && project.selectedHeaders.length > 0
+              ? project.selectedHeaders
+              : project.headers
+            ).some((header) => header.toLowerCase() === "audio");
+
+          // 1. Add Synthetic Audio Column if detected and no visible audio column exists
+          if (audioColumnField && !selectedAudioColumn) {
             cols.push({
               headerName: "Audio",
               field: audioColumnField, // Use audio field data
@@ -133,8 +140,14 @@ const DataGrid = ({ projectId }) => {
             });
           }
 
-          // 2. Add remaining columns
-          project.headers.forEach((header) => {
+          const visibleHeaders =
+            project.selectedHeaders && project.selectedHeaders.length > 0
+              ? project.selectedHeaders
+              : project.headers;
+
+          // 2. Add selected columns
+          visibleHeaders.forEach((header) => {
+            const lowerHeader = header.toLowerCase();
             const colDef = {
               field: header,
               headerName: header.charAt(0).toUpperCase() + header.slice(1),
@@ -143,8 +156,28 @@ const DataGrid = ({ projectId }) => {
               resizable: true,
             };
 
+            if (lowerHeader === "audio") {
+              colDef.editable = false;
+              colDef.filter = false;
+              colDef.pinned = "left";
+              colDef.width = 300;
+              colDef.cellRenderer = (params) => {
+                const src = getAudioSource(params.data, header);
+                if (!src) return params.value || null;
+                return (
+                  <audio
+                    controls
+                    preload="none"
+                    src={src}
+                    style={{ height: "30px", marginTop: "5px", width: "260px" }}
+                  >
+                    Your browser does not support the audio element.
+                  </audio>
+                );
+              };
+            }
+
             // Hide the source audio column and specific requests
-            const lowerHeader = header.toLowerCase();
             if (
               header === audioColumnField ||
               lowerHeader === "audio base64" ||
@@ -360,12 +393,6 @@ const DataGrid = ({ projectId }) => {
     gridApi.setGridOption("datasource", dataSource);
   }, [gridApi, projectId, projectInfo]);
 
-  const containerStyle = useMemo(
-    () => ({ width: "100%", height: "calc(100vh - 200px)" }),
-    [],
-  );
-  const gridStyle = useMemo(() => ({ height: "100%", width: "100%" }), []);
-
   return (
     <div style={{ position: "relative", height: "100%" }}>
       <div
@@ -508,8 +535,8 @@ const DataGrid = ({ projectId }) => {
                 columnDefs={columnDefs}
                 rowModelType="infinite"
                 pagination={true}
-                paginationPageSize={1}
-                cacheBlockSize={1}
+                paginationPageSize={50}
+                cacheBlockSize={50}
                 onGridReady={onGridReady}
                 onCellDoubleClicked={handleCellDoubleClicked}
                 onCellValueChanged={handleCellValueChanged}

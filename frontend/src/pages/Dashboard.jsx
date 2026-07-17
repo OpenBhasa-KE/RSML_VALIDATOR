@@ -34,6 +34,11 @@ const Dashboard = () => {
             setProjects(response.data);
         } catch (error) {
             console.error('Error fetching projects:', error);
+            if (error.response?.status === 401) {
+                localStorage.removeItem('token');
+                localStorage.removeItem('role');
+                navigate('/login');
+            }
         }
     };
 

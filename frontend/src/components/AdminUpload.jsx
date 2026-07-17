@@ -16,6 +16,8 @@ const AdminUpload = ({ onUploadSuccess }) => {
     const inputRef = useRef(null);
     const dropdownRef = useRef(null);
 
+    const isParquet = (f) => f && f.name.toLowerCase().endsWith('.parquet');
+
     const parseHeaders = (csvFile) => {
         return new Promise((resolve) => {
             const reader = new FileReader();
@@ -32,6 +34,12 @@ const AdminUpload = ({ onUploadSuccess }) => {
         const f = e.target.files[0];
         if (!f) return;
         setFile(f);
+        if (isParquet(f)) {
+            // Parquet is binary — headers are detected server-side after upload.
+            setAllHeaders([]);
+            setSelectedFields([]);
+            return;
+        }
         const headers = await parseHeaders(f);
         setAllHeaders(headers);
         setSelectedFields([...LOCKED_FIELDS.filter(lf => headers.includes(lf))]);
@@ -97,7 +105,7 @@ const AdminUpload = ({ onUploadSuccess }) => {
     // ── Upload ────────────────────────────────────────────────────────────────
     const handleUpload = async () => {
         if (!file || !projectName.trim()) {
-            alert('Please enter a project name and select a CSV file.');
+            alert('Please enter a project name and select a CSV or Parquet file.');
             return;
         }
         const formData = new FormData();
@@ -108,17 +116,20 @@ const AdminUpload = ({ onUploadSuccess }) => {
         ));
         formData.append('customColumns', JSON.stringify(customCols));
         setUploading(true);
+        console.log('[AdminUpload] Uploading', { name: file.name, size: file.size, type: file.type, projectName });
         try {
             const token = localStorage.getItem('token');
-            await axios.post(`${import.meta.env.VITE_API_URL}/admin/upload`, formData, {
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/admin/upload`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data', Authorization: `Bearer ${token}` }
             });
+            console.log('[AdminUpload] Upload succeeded:', res.data);
             alert('Project created successfully!');
             setFile(null); setProjectName(''); setSelectedFields([]); setAllHeaders([]);
             setQuery(''); setCustomCols([]);
             if (onUploadSuccess) onUploadSuccess();
         } catch (error) {
-            alert('Upload failed: ' + (error.response?.data?.message || 'Unknown error'));
+            console.error('[AdminUpload] Upload failed. Status:', error.response?.status, 'Data:', error.response?.data, 'Full error:', error);
+            alert('Upload failed: ' + (error.response?.data?.message || error.message || 'Unknown error'));
         } finally {
             setUploading(false);
         }
@@ -181,8 +192,10 @@ const AdminUpload = ({ onUploadSuccess }) => {
                     <span style={{ fontSize: '1.1em' }}>{file ? '📄' : '📂'}</span>
                     <span style={{ flex: 1 }}>
                         {file
-                            ? <>{file.name} <span style={{ fontWeight: 400, color: '#6c757d', fontSize: '0.85em' }}>· {allHeaders.length} columns detected</span></>
-                            : 'Upload CSV — click to browse'
+                            ? <>{file.name} <span style={{ fontWeight: 400, color: '#6c757d', fontSize: '0.85em' }}>
+                                · {isParquet(file) ? 'columns auto-detected on upload' : `${allHeaders.length} columns detected`}
+                              </span></>
+                            : 'Upload CSV or Parquet — click to browse'
                         }
                     </span>
                     {file && (
@@ -191,7 +204,7 @@ const AdminUpload = ({ onUploadSuccess }) => {
                             style={{ fontSize: '1em', color: '#dc3545', fontWeight: 'bold', cursor: 'pointer' }}
                         >×</span>
                     )}
-                    <input type="file" accept=".csv" onChange={handleFileChange} style={{ display: 'none' }} />
+                    <input type="file" accept=".csv,.parquet" onChange={handleFileChange} style={{ display: 'none' }} />
                 </label>
 
                 {/* Row 3: Select Fields */}
@@ -210,7 +223,9 @@ const AdminUpload = ({ onUploadSuccess }) => {
                         {selectedFields.length === 0 && query === '' && (
                             <span style={{ color: '#6c757d', fontWeight: 600, pointerEvents: 'none', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <span>🗂</span>
-                                {allHeaders.length === 0 ? 'Select Fields (upload a CSV first)' : 'Select Fields — type to search…'}
+                                {isParquet(file)
+                                    ? 'Parquet file — all columns will be included automatically'
+                                    : allHeaders.length === 0 ? 'Select Fields (upload a CSV first)' : 'Select Fields — type to search…'}
                             </span>
                         )}
 
