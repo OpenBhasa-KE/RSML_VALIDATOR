@@ -9,7 +9,15 @@ const upload = require('../../middlewares/upload');
 router.post('/upload',
     authMiddleware,
     roleMiddleware(['admin']),
-    upload.single('file'),
+    (req, res, next) => {
+        upload.single('file')(req, res, (err) => {
+            if (err) {
+                console.error(`[Upload] multer error on ${req.method} ${req.originalUrl}:`, err.message);
+                return res.status(400).json({ message: err.message });
+            }
+            next();
+        });
+    },
     adminController.uploadCsv
 );
 

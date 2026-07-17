@@ -10,20 +10,26 @@ if (!fs.existsSync(uploadDir)) {
 
 const storage = multer.diskStorage({
     destination: function (req, file, cb) {
+        console.log(`[Upload] Saving to: ${uploadDir}`);
         cb(null, uploadDir);
     },
     filename: function (req, file, cb) {
-        cb(null, Date.now() + '-' + file.originalname);
+        const name = Date.now() + '-' + file.originalname;
+        console.log(`[Upload] Incoming file: originalname="${file.originalname}", mimetype="${file.mimetype}", saved as "${name}"`);
+        cb(null, name);
     }
 });
 
 const upload = multer({
     storage: storage,
     fileFilter: (req, file, cb) => {
-        if (file.mimetype === 'text/csv' || file.mimetype === 'application/vnd.ms-excel') {
+        const ext = path.extname(file.originalname).toLowerCase();
+        console.log(`[Upload] fileFilter check: originalname="${file.originalname}", ext="${ext}", mimetype="${file.mimetype}"`);
+        if (ext === '.csv' || ext === '.parquet') {
             cb(null, true);
         } else {
-            cb(new Error('Only CSV files are allowed!'), false);
+            console.warn(`[Upload] Rejected file "${file.originalname}" — extension "${ext}" not allowed`);
+            cb(new Error('Only CSV or Parquet files are allowed!'), false);
         }
     }
 });

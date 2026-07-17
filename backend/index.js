@@ -18,6 +18,12 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// Request logger
+app.use((req, res, next) => {
+    console.log(`[Request] ${req.method} ${req.originalUrl}`);
+    next();
+});
+
 // Import Routes
 const loginRoutes = require('./modules/login');
 const registerRoutes = require('./modules/register');
@@ -33,6 +39,12 @@ app.use('/viewer', viewerRoutes);
 // Health Check
 app.get('/', (req, res) => {
     res.send('API is running...');
+});
+
+// Global error handler — catches anything not handled by a route/middleware
+app.use((err, req, res, next) => {
+    console.error(`[Global Error] ${req.method} ${req.originalUrl}:`, err);
+    res.status(err.status || 500).json({ message: err.message || 'Internal server error' });
 });
 
 const PORT = process.env.PORT || 5000;
