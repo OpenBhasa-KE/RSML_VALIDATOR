@@ -34,7 +34,7 @@ exports.getProjectData = async (req, res) => {
     try {
         const { id } = req.params;
         const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 50;
+        const limit = Math.min(parseInt(req.query.limit) || 50, 500);
         const skip = (page - 1) * limit;
 
         const project = await Project.findById(id);

@@ -3,9 +3,6 @@ const csv = require('csv-parser');
 const Project = require('../../../database/models/Project');
 const DataRow = require('../../../database/models/DataRow');
 
-// TESTING ONLY: cap ingestion to this many rows regardless of file size.
-const TEST_ROW_LIMIT = 10;
-
 exports.processCsvUpload = async (fileInfo, projectName, selectedHeaders = [], customColumns = []) => {
     const filePath = fileInfo.path;
     const batchSize = 1000;
@@ -65,16 +62,11 @@ exports.processCsvUpload = async (fileInfo, projectName, selectedHeaders = [], c
         stream.on('data', async (row) => {
             // Validate row is not empty/corrupt
             if (Object.keys(row).length === 0) return;
-            if (rowCount >= TEST_ROW_LIMIT) return;
 
             batch.push({ projectId: project._id, data: row });
             rowCount++;
 
-            if (rowCount >= TEST_ROW_LIMIT) {
-                console.log(`[CSV Service] TEST MODE: reached ${TEST_ROW_LIMIT} row limit`);
-                stream.destroy();
-                finalize();
-            } else if (batch.length >= batchSize) {
+            if (batch.length >= batchSize) {
                 stream.pause();
                 try {
                     await DataRow.insertMany(batch, { ordered: false });

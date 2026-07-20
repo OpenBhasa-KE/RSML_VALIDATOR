@@ -34,9 +34,6 @@ function normalizeRow(row) {
     return out;
 }
 
-// TESTING ONLY: cap ingestion to this many rows regardless of file size.
-const TEST_ROW_LIMIT = 10;
-
 exports.processParquetUpload = async (fileInfo, projectName, selectedHeaders = [], customColumns = []) => {
     const filePath = fileInfo.path;
     const batchSize = 1000;
@@ -87,11 +84,6 @@ exports.processParquetUpload = async (fileInfo, projectName, selectedHeaders = [
     }
 
     console.log(`[Parquet Service] Read ${rows.length} rows, ${headers.length} columns`);
-
-    if (rows.length > TEST_ROW_LIMIT) {
-        console.log(`[Parquet Service] TEST MODE: limiting to first ${TEST_ROW_LIMIT} rows`);
-        rows = rows.slice(0, TEST_ROW_LIMIT);
-    }
 
     let batch = [];
     let rowCount = 0;
